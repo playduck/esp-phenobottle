@@ -60,10 +60,10 @@ static camera_config_t camera_config = {
     .pixel_format = PIXFORMAT_JPEG, // YUV422,GRAYSCALE,RGB565,JPEG
     .frame_size = FRAMESIZE_UXGA,   // QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
 
-    .jpeg_quality = 40, // 0-63, for OV series camera sensors, lower number means higher quality
-    .fb_count = 1,      // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
+    .jpeg_quality = 16, // 0-63, for OV series camera sensors, lower number means higher quality
+    .fb_count = 2,      // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .fb_location = CAMERA_FB_IN_PSRAM,
-    .grab_mode = CAMERA_GRAB_WHEN_EMPTY // CAMERA_GRAB_LATEST. Sets when buffers should be filled
+    .grab_mode = CAMERA_GRAB_LATEST // CAMERA_GRAB_LATEST. Sets when buffers should be filled
 };
 
 esp_err_t camera_init()
@@ -97,7 +97,7 @@ esp_err_t camera_init()
 
     // Warm-up loop to discard first few frames
     ESP_LOGI(TAG, "Warming up camera...");
-    for (int i = 0; i < 50; i++)
+    for (int i = 0; i < 10; i++)
     {
         camera_fb_t *fb = esp_camera_fb_get();
         if (!fb)
@@ -117,7 +117,7 @@ esp_err_t camera_capture()
     esp_err_t err = ESP_OK;
 
     gpio_set_level(CAM_PIN_FLASH, 1);
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(800 / portTICK_PERIOD_MS);
 
     // acquire a frame
     camera_fb_t *fb = esp_camera_fb_get();
