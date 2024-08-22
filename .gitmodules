@@ -1,3 +1,0 @@
-[submodule "components/b64/b64.c"]
-	path = components/b64/b64.c
-	url = https://github.com/jwerle/b64.c.git
