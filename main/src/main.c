@@ -286,15 +286,10 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-
-
     size_t psram_size = esp_psram_get_size();
     printf("PSRAM size: %d bytes\n", psram_size);
 
     camera_init();
-    camera_capture();
-
-    return;
 
     /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
      * Read "Establishing Wi-Fi or Ethernet Connection" section in
@@ -318,6 +313,10 @@ void app_main(void)
 
     sprintf(USER_AGENT, "esp-idf/%d.%d.%d esp32", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR, ESP_IDF_VERSION_PATCH);
 
-    xTaskCreate(&https_request_task, "https_get_task", 8192 * 4, NULL, 5, NULL);
+    xTaskCreate(&camera_capture, "camera_task", 8192 * 4, NULL, 5, NULL);
+    // xTaskCreate(&https_request_task, "https_get_task", 8192 * 4, NULL, 5, NULL);
+
+    // camera_capture();
+
 
 }
