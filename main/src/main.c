@@ -22,6 +22,7 @@
 #include "esp_netif.h"
 #include "esp_tls.h"
 #include "esp_http_client.h"
+#include "esp_psram.h"
 
 #include "lwip/err.h"
 #include "lwip/sockets.h"
@@ -34,6 +35,8 @@
 #include "sdkconfig.h"
 
 #include "time_sync.h"
+
+#include "camera.h"
 
 
 #define MAX_HTTP_RECV_BUFFER 512
@@ -283,6 +286,16 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
+
+
+    size_t psram_size = esp_psram_get_size();
+    printf("PSRAM size: %d bytes\n", psram_size);
+
+    camera_init();
+    camera_capture();
+
+    return;
+
     /* This helper function configures Wi-Fi or Ethernet, as selected in menuconfig.
      * Read "Establishing Wi-Fi or Ethernet Connection" section in
      * examples/protocols/README.md for more information about this function.
@@ -306,4 +319,5 @@ void app_main(void)
     sprintf(USER_AGENT, "esp-idf/%d.%d.%d esp32", ESP_IDF_VERSION_MAJOR, ESP_IDF_VERSION_MINOR, ESP_IDF_VERSION_PATCH);
 
     xTaskCreate(&https_request_task, "https_get_task", 8192 * 4, NULL, 5, NULL);
+
 }
