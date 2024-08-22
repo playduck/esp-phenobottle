@@ -30,46 +30,72 @@
 #include "sdkconfig.h"
 
 #include "time_sync.h"
-
-#define max(a, b)               \
-    ({                          \
-        __typeof__(a) _a = (a); \
-        __typeof__(b) _b = (b); \
-        _a > _b ? _a : _b;      \
-    })
-
-#define min(a, b)               \
-    ({                          \
-        __typeof__(a) _a = (a); \
-        __typeof__(b) _b = (b); \
-        _a < _b ? _a : _b;      \
-    })
-
-/* Constants that aren't configurable in menuconfig */
-#define WEB_SERVER "warr.robin-prillwitz.de"
-#define WEB_PORT "443"
-#define WEB_URL "https://warr.robin-prillwitz.de/api/v1/state/1"
-
-#define SERVER_URL_MAX_SZ 256
+#include "b64.h"
 
 static const char *TAG = "MAIN";
+
+#define WEB_PORT "443"
+#define WEB_SERVER "warr.robin-prillwitz.de"
+#define API_STATE_ENDPOINT "https://warr.robin-prillwitz.de/api/v1/state/1"
 
 /* Timer interval once every day (24 Hours) */
 #define TIME_PERIOD (86400000000ULL)
 
-static const char REQUEST[] = \
-    "GET " WEB_URL " HTTP/1.1\r\n"
-    "Host: " WEB_SERVER "\r\n"
-    "User-Agent: esp-idf/1.0 esp32\r\n"
-    "\r\n";
+static char USER_AGENT[] = "esp-idf/1.0 esp32";
 
 extern const uint8_t server_root_cert_pem_start[] asm("_binary_server_root_cert_pem_start");
 extern const uint8_t server_root_cert_pem_end[] asm("_binary_server_root_cert_pem_end");
 
+char requestBuffer[1024];
 char outputBuffer[2048 * 2];
 
-static void https_get_request(esp_tls_cfg_t cfg, const char *WEB_SERVER_URL, const char *REQUEST)
+static int generateHttpRequest(const char* messageType, const char* webUrl, const char* webServer,
+                         const char* authUsername, const char* authPassword, const char* messageContent) {
+
+    int ret_val = 1;
+
+    // Clear the request buffer
+    memset(requestBuffer, 0, sizeof(requestBuffer));
+
+    // Set the message type and URL
+    sprintf(requestBuffer, "%s %s HTTP/1.1\r\n", messageType, webUrl);
+
+    // Set the Host header
+    sprintf(requestBuffer + strlen(requestBuffer), "Host: %s\r\n", webServer);
+
+    // Set the User-Agent header
+    sprintf(requestBuffer + strlen(requestBuffer), "User-Agent: %s\r\n", USER_AGENT);
+
+    // Set the Authorization header if credentials are provided
+    if (authUsername && authPassword) {
+        char authString[256];
+        sprintf(authString, "%s:%s", authUsername, authPassword);
+        char* encodedAuthString = b64_encode((unsigned char*)authString, strnlen(authString, 256));
+
+        sprintf(requestBuffer + strlen(requestBuffer), "Authorization: Basic %s\r\n", encodedAuthString);
+    }
+
+    // Set the Content-Length header if message content is provided
+    if (messageContent) {
+        sprintf(requestBuffer + strlen(requestBuffer), "Content-Length: %zu\r\n", strlen(messageContent));
+    }
+
+    // Add a blank line to indicate the end of headers
+    sprintf(requestBuffer + strlen(requestBuffer), "\r\n");
+
+    // Add the message content if provided
+    if (messageContent) {
+        sprintf(requestBuffer + strlen(requestBuffer), "%s", messageContent);
+    }
+
+    ESP_LOG_BUFFER_HEXDUMP(TAG, requestBuffer, strlen(requestBuffer), ESP_LOG_INFO);
+    ret_val = 0;
+    return ret_val;
+}
+
+static int https_get_request(esp_tls_cfg_t cfg, const char *WEB_SERVER_URL, const char *REQUEST)
 {
+    int ret_val = 1;
     int j = 0;
     char buf[128];
     int ret, len;
@@ -159,11 +185,12 @@ static void https_get_request(esp_tls_cfg_t cfg, const char *WEB_SERVER_URL, con
             break;
         }
     } while (1);
+    ret_val = 0;
 
 cleanup:
     esp_tls_conn_destroy(tls);
 exit:
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    return ret_val;
 }
 
 static int parseState()
@@ -277,8 +304,10 @@ static void https_request_task(void *pvparameters)
         .cacert_buf = (const unsigned char *)server_root_cert_pem_start,
         .cacert_bytes = server_root_cert_pem_end - server_root_cert_pem_start,
     };
-    https_get_request(cfg, WEB_URL, REQUEST);
-    parseState();
+    generateHttpRequest("GET", API_STATE_ENDPOINT, WEB_SERVER, CONFIG_USERNAME, CONFIG_PASSWORD, NULL);
+    if(https_get_request(cfg, WEB_SERVER, requestBuffer) == 0)  {
+        parseState();
+    }
 
     ESP_LOGI(TAG, "Finish https_request example");
     vTaskDelete(NULL);

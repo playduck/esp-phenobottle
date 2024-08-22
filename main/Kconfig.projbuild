@@ -1,2 +1,11 @@
 menu "Phenobottle Configuration"
+    config USERNAME
+        string
+        prompt "Username"
+        default ""
+
+    config PASSWORD
+        string
+        prompt "Password"
+        default ""
 endmenu
