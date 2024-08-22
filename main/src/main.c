@@ -20,6 +20,8 @@
 #include "protocol_examples_utils.h"
 #include "esp_sntp.h"
 #include "esp_netif.h"
+#include "esp_tls.h"
+#include "esp_http_client.h"
 
 #include "lwip/err.h"
 #include "lwip/sockets.h"
@@ -29,13 +31,10 @@
 
 #include <cJSON.h>
 
-#include "esp_tls.h"
 #include "sdkconfig.h"
 
 #include "time_sync.h"
-#include "b64.h"
 
-#include "esp_http_client.h"
 
 #define MAX_HTTP_RECV_BUFFER 512
 #define MAX_HTTP_OUTPUT_BUFFER 2048
@@ -55,12 +54,13 @@ extern const char server_root_cert_pem_start[] asm("_binary_server_root_cert_pem
 extern const char server_root_cert_pem_end[] asm("_binary_server_root_cert_pem_end");
 
 char requestBuffer[1024];
-char outputBuffer[2048 * 2];
+
+#define OUTPUT_BUFFER_SIZE (4096)
+char output_buffer[OUTPUT_BUFFER_SIZE];
 
 esp_err_t _http_event_handler(esp_http_client_event_t *evt)
 {
-    static char *output_buffer; // Buffer to store response of http request from event handler
-    static int output_len;      // Stores number of bytes read
+    static int output_len = 0;      // Stores number of bytes read
     switch (evt->event_id)
     {
     case HTTP_EVENT_ERROR:
@@ -103,16 +103,17 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             else
             {
                 int content_len = esp_http_client_get_content_length(evt->client);
-                if (output_buffer == NULL)
+                if (output_len == 0)
                 {
                     // We initialize output_buffer with 0 because it is used by strlen() and similar functions therefore should be null terminated.
-                    output_buffer = (char *)calloc(content_len + 1, sizeof(char));
-                    output_len = 0;
-                    if (output_buffer == NULL)
-                    {
-                        ESP_LOGE(TAG, "Failed to allocate memory for output buffer");
+                    // output_buffer = (char *)calloc(content_len + 1, sizeof(char));
+                    if(content_len > OUTPUT_BUFFER_SIZE)    {
+                        ESP_LOGE(TAG, "Content length greater than buffer size");
                         return ESP_FAIL;
                     }
+                    memset(output_buffer, '\0', OUTPUT_BUFFER_SIZE);
+
+                    output_len = 0;
                 }
                 copy_len = MIN(evt->data_len, (content_len - output_len));
                 if (copy_len)
@@ -126,13 +127,8 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
         break;
     case HTTP_EVENT_ON_FINISH:
         ESP_LOGD(TAG, "HTTP_EVENT_ON_FINISH");
-        if (output_buffer != NULL)
-        {
-            // ESP_LOG_BUFFER_HEX(TAG, output_buffer, output_len);
-            ESP_LOGI(TAG, "Output Buffer:\n%s\n", output_buffer);
-            free(output_buffer);
-            output_buffer = NULL;
-        }
+        ESP_LOGI(TAG, "Output Buffer:\n%s\n", output_buffer);
+
         output_len = 0;
         break;
     case HTTP_EVENT_DISCONNECTED:
@@ -144,11 +140,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
             ESP_LOGI(TAG, "Last esp error code: 0x%x", err);
             ESP_LOGI(TAG, "Last mbedtls failure: 0x%x", mbedtls_err);
         }
-        if (output_buffer != NULL)
-        {
-            free(output_buffer);
-            output_buffer = NULL;
-        }
+
         output_len = 0;
         break;
     case HTTP_EVENT_REDIRECT:
@@ -161,154 +153,6 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
     return ESP_OK;
 }
 
-static int generateHttpRequest(const char *messageType, const char *webUrl, const char *webServer,
-                               const char *authUsername, const char *authPassword, const char *messageContent)
-{
-
-    int ret_val = 1;
-
-    // Clear the request buffer
-    memset(requestBuffer, 0, sizeof(requestBuffer));
-
-    // Set the message type and URL
-    sprintf(requestBuffer, "%s %s HTTP/1.1\r\n", messageType, webUrl);
-
-    // Set the Host header
-    sprintf(requestBuffer + strlen(requestBuffer), "Host: %s\r\n", webServer);
-
-    // Set the User-Agent header
-    sprintf(requestBuffer + strlen(requestBuffer), "User-Agent: %s\r\n", USER_AGENT);
-
-    // Set the Authorization header if credentials are provided
-    if (authUsername && authPassword)
-    {
-        char authString[256];
-        sprintf(authString, "%s:%s", authUsername, authPassword);
-        char *encodedAuthString = b64_encode((unsigned char *)authString, strnlen(authString, 256));
-
-        sprintf(requestBuffer + strlen(requestBuffer), "Authorization: Basic %s\r\n", encodedAuthString);
-    }
-
-    // Set the Content-Length header if message content is provided
-    if (messageContent)
-    {
-        sprintf(requestBuffer + strlen(requestBuffer), "Content-Length: %zu\r\n", strlen(messageContent));
-    }
-
-    // Add a blank line to indicate the end of headers
-    sprintf(requestBuffer + strlen(requestBuffer), "\r\n");
-
-    // Add the message content if provided
-    if (messageContent)
-    {
-        sprintf(requestBuffer + strlen(requestBuffer), "%s", messageContent);
-    }
-
-    ESP_LOG_BUFFER_HEXDUMP(TAG, requestBuffer, strlen(requestBuffer), ESP_LOG_INFO);
-    ret_val = 0;
-    return ret_val;
-}
-
-static int https_get_request(esp_tls_cfg_t cfg, const char *WEB_SERVER_URL, const char *REQUEST)
-{
-    int ret_val = 1;
-    int j = 0;
-    char buf[128];
-    int ret, len;
-
-    memset(outputBuffer, 0x00, sizeof(outputBuffer));
-
-    esp_tls_t *tls = esp_tls_init();
-    if (!tls)
-    {
-        ESP_LOGE(TAG, "Failed to allocate esp_tls handle!");
-        goto exit;
-    }
-
-    if (esp_tls_conn_http_new_sync(WEB_SERVER_URL, &cfg, tls) == 1)
-    {
-        ESP_LOGI(TAG, "Connection established...");
-    }
-    else
-    {
-        ESP_LOGE(TAG, "Connection failed...");
-        int esp_tls_code = 0, esp_tls_flags = 0;
-        esp_tls_error_handle_t tls_e = NULL;
-        esp_tls_get_error_handle(tls, &tls_e);
-        /* Try to get TLS stack level error and certificate failure flags, if any */
-        ret = esp_tls_get_and_clear_last_error(tls_e, &esp_tls_code, &esp_tls_flags);
-        if (ret == ESP_OK)
-        {
-            ESP_LOGE(TAG, "TLS error = -0x%x, TLS flags = -0x%x", esp_tls_code, esp_tls_flags);
-        }
-        goto cleanup;
-    }
-
-    size_t written_bytes = 0;
-    do
-    {
-        ret = esp_tls_conn_write(tls,
-                                 REQUEST + written_bytes,
-                                 strlen(REQUEST) - written_bytes);
-        if (ret >= 0)
-        {
-            ESP_LOGI(TAG, "%d bytes written", ret);
-            written_bytes += ret;
-        }
-        else if (ret != ESP_TLS_ERR_SSL_WANT_READ && ret != ESP_TLS_ERR_SSL_WANT_WRITE)
-        {
-            ESP_LOGE(TAG, "esp_tls_conn_write  returned: [0x%02X](%s)", ret, esp_err_to_name(ret));
-            goto cleanup;
-        }
-    } while (written_bytes < strlen(REQUEST));
-
-    ESP_LOGI(TAG, "Reading HTTP response...");
-    do
-    {
-        len = sizeof(buf) - 1;
-        memset(buf, 0x00, sizeof(buf));
-        ret = esp_tls_conn_read(tls, (char *)buf, len);
-
-        if (ret == ESP_TLS_ERR_SSL_WANT_WRITE || ret == ESP_TLS_ERR_SSL_WANT_READ)
-        {
-            ESP_LOGW(TAG, "continuation ret val [-0x%02X](%s)", -ret, esp_err_to_name(ret));
-            continue;
-        }
-        else if (ret < 0)
-        {
-            ESP_LOGE(TAG, "esp_tls_conn_read  returned [-0x%02X](%s)", -ret, esp_err_to_name(ret));
-            break;
-        }
-        else if (ret == 0)
-        {
-            ESP_LOGI(TAG, "connection closed");
-            break;
-        }
-
-        len = ret;
-        ESP_LOGD(TAG, "%d bytes read", len);
-        /* Print response directly to stdout as it is read */
-        for (int i = 0; i < len; i++)
-        {
-            outputBuffer[j] = buf[i];
-            j = j + 1;
-        }
-
-        ssize_t available = esp_tls_get_bytes_avail(tls);
-        ESP_LOGD(TAG, "%d bytes available", available);
-        if (available <= 0)
-        {
-            break;
-        }
-    } while (1);
-    ret_val = 0;
-
-cleanup:
-    esp_tls_conn_destroy(tls);
-exit:
-    return ret_val;
-}
-
 static int parseState()
 {
     char *jsonString = NULL;
@@ -319,22 +163,7 @@ static int parseState()
 
     int ret_val = 1;
 
-    // Find the end of the HTTP response header
-    headerEnd = strstr(outputBuffer, "\r\n\r\n");
-    if (!headerEnd)
-    {
-        ESP_LOGE(TAG, "Error: unable to find end of HTTP response header\n");
-        goto end;
-    }
-
-    // Extract the JSON string
-    jsonStart = headerEnd + 4; // to skip the newline characters
-    jsonString = malloc(strlen(jsonStart) + 1);
-    strcpy(jsonString, jsonStart);
-
-    printf(jsonString);
-
-    root = cJSON_ParseWithLength(jsonString, 4096);
+    root = cJSON_ParseWithLength(output_buffer, 4096);
     if (!root)
     {
         ESP_LOGE(TAG, "Error parsing JSON\n");
@@ -348,7 +177,7 @@ static int parseState()
         goto end;
     }
 
-    ESP_LOGI(TAG, "State: %s\n", cJSON_Print(state));
+    printf("State: %s\n", cJSON_Print(state));
 
     cJSON *tasks = cJSON_GetObjectItem(root, "tasks");
     if (!tasks)
@@ -435,6 +264,8 @@ static void https_request_task(void *pvparameters)
         ESP_LOGI(TAG, "HTTPS Status = %d, content_length = %" PRId64,
                  esp_http_client_get_status_code(client),
                  esp_http_client_get_content_length(client));
+
+        parseState();
     }
     else
     {
