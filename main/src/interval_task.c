@@ -48,7 +48,7 @@ void task(void *pvparameters)
 
             if (task_interface->disable_update == false)
             {
-                ESP_LOGI(task_interface->name, "Update");
+                ESP_LOGD(task_interface->name, "Update");
 
                 if (task_interface->update)
                 {
@@ -64,7 +64,7 @@ void task(void *pvparameters)
 
             if (task_interface->disable_publish == false)
             {
-                ESP_LOGI(task_interface->name, "Publish");
+                ESP_LOGD(task_interface->name, "Publish");
 
                 if (task_interface->force_publish > 0)
                 {
