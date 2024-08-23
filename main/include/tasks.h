@@ -5,8 +5,9 @@
 
 #include "interval_task.h"
 
-#include "camera.h"
 #include "task_manager.h"
+#include "camera.h"
+#include "temp_sensor.h"
 
 interval_task_interface_t task_manager_interface = {
     .name = "task_manager",
@@ -36,6 +37,21 @@ interval_task_interface_t camera_task_interface = {
     .update = camera_update,
     .publish = camera_publish,
     .end = camera_end
+};
+
+interval_task_interface_t temp_task_interface = {
+    .name = "temp_task",
+    .force_publish = 0,
+    .disable_update = false,
+    .disable_publish = false,
+    .publish_interval = 10ULL * 1000ULL,
+    .update_interval = 1ULL * 1000ULL,
+    .task_interval = 500ULL,
+    .init = temp_init,
+    .start = temp_start,
+    .update = temp_update,
+    .publish = temp_publish,
+    .end = temp_end
 };
 
 #endif

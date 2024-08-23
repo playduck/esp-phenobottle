@@ -60,6 +60,7 @@ void app_main(void)
 
     ESP_ERROR_CHECK(client_init());
 
-    xTaskCreate(&task, task_manager_interface.name, 4096, (void*)&task_manager_interface, 4, NULL);
-    xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, 8, NULL);
+    xTaskCreate(&task, task_manager_interface.name, 4096, (void*)&task_manager_interface, configMAX_PRIORITIES - 3, NULL);
+    xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, configMAX_PRIORITIES - 5, NULL);
+    xTaskCreate(&task, temp_task_interface.name, 2048, (void*)&temp_task_interface, configMAX_PRIORITIES - 2, NULL);
 }

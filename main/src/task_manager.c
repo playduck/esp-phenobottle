@@ -13,6 +13,7 @@
 #include "endpoints.h"
 
 extern interval_task_interface_t camera_task_interface;
+extern interval_task_interface_t temp_task_interface;
 
 static const char *TAG = "Task Manager";
 uint8_t t = 0;
@@ -21,13 +22,8 @@ char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER + 1] = {0};
 
 static esp_err_t parseState()
 {
-    char *jsonString = NULL;
-    char *headerEnd = NULL;
-    char *jsonStart = NULL;
-
-    cJSON *root = NULL;
-
     esp_err_t ret_val = ESP_FAIL;
+    cJSON *root = NULL;
 
     root = cJSON_ParseWithLength(local_response_buffer, MAX_HTTP_OUTPUT_BUFFER + 1);
     if (!root)
@@ -103,7 +99,6 @@ end:
     {
         cJSON_Delete(root);
     }
-    free(jsonString);
     return ret_val;
 }
 
