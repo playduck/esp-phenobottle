@@ -26,25 +26,12 @@
 #include "time_sync.h"
 #include "client.h"
 #include "camera.h"
+#include "tasks.h"
 
 static const char *TAG = "MAIN";
 
 /* NVS fetch and store time period: hours * minutes * seconds * milliseconds * microseconds */
 #define NVS_TIME_PERIOD_US (6ULL * 60ULL * 60ULL * 1000ULL * 1000ULL)
-
-interval_task_interface_t camera_task_interface = {
-    .name = "camera_task",
-    .force_publish = 0,
-    .disable_update = true,
-    .publish_interval = 30ULL * 1000ULL,
-    .update_interval = 10ULL * 1000ULL,
-    .task_interval = 1ULL * 1000ULL,
-    .init = camera_init,
-    .start = camera_start,
-    .update = camera_update,
-    .publish = camera_publish,
-    .end = camera_end
-};
 
 void app_main(void)
 {
@@ -73,5 +60,6 @@ void app_main(void)
 
     ESP_ERROR_CHECK(client_init());
 
-    xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, 5, NULL);
+    xTaskCreate(&task, task_manager_interface.name, 4096, (void*)&task_manager_interface, 4, NULL);
+    xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, 8, NULL);
 }

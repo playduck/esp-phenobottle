@@ -13,6 +13,7 @@
 #include "camera.h"
 #include "interval_task.h"
 #include "http_status_codes.h"
+#include "endpoints.h"
 
 static const char *TAG = "CAM";
 
@@ -20,7 +21,7 @@ static const char *TAG = "CAM";
 #define FILE_BOUNDARY "WarrSpacelabsDataBoundary"
 
 /* max buffer size per mulitpart TCP packet */
-#define MAX_HTTP_OUTPUT_BUFFER (1024)
+// #define MAX_HTTP_OUTPUT_BUFFER (1024)
 
 /* temporary assembly and response buffer */
 #define TMP_BUFFER_LENGTH (1024)
@@ -90,23 +91,31 @@ camera_fb_t* take_image()   {
     camera_fb_t *fb = esp_camera_fb_get();
     get_current_time(&timestamp);
 
-    // blink flash to show an image was taken
-    for (uint8_t i = 0; i < 3; i++)
-    {
-        // magic value delays
-        gpio_set_level(CAM_PIN_FLASH, 1);
-        vTaskDelay(pdMS_TO_TICKS(20));
-        gpio_set_level(CAM_PIN_FLASH, 0);
-        vTaskDelay(pdMS_TO_TICKS(30));
-    }
-
     if (!fb)
     {
         ESP_LOGE(TAG, "Camera Capture Failed");
+        // blink an error pattern
+        for (uint8_t i = 0; i < 6; i++)
+        {
+            gpio_set_level(CAM_PIN_FLASH, 1);
+            vTaskDelay(pdMS_TO_TICKS(10));
+            gpio_set_level(CAM_PIN_FLASH, 0);
+            vTaskDelay(pdMS_TO_TICKS(70));
+        }
+
     }   else    {
         ESP_LOGI(TAG, "Frame Captured");
-    }
 
+        // blink flash to show an image was taken
+        for (uint8_t i = 0; i < 3; i++)
+        {
+            gpio_set_level(CAM_PIN_FLASH, 1);
+            vTaskDelay(pdMS_TO_TICKS(20));
+            gpio_set_level(CAM_PIN_FLASH, 0);
+            vTaskDelay(pdMS_TO_TICKS(30));
+        }
+
+    }
     return fb;
 }
 
@@ -123,7 +132,7 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
 
     // setup client connection (wait for other processses to finish)
     esp_http_client_config_t* config = get_config();
-    config->url = "http://192.168.178.85:8080/api/v1/image";
+    config->url = API_V1_POST_IAMGE;
 
     esp_http_client_handle_t client = esp_http_client_init(config);
     esp_http_client_set_method(client, HTTP_METHOD_POST);

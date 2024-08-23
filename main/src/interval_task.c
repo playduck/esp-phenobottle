@@ -6,7 +6,8 @@
 #include "interval_task.h"
 #include "timer.h"
 
-typedef struct {
+typedef struct
+{
     uint32_t last_update;
     uint32_t last_publish;
 } interval_task_state_t;
@@ -47,7 +48,7 @@ void task(void *pvparameters)
 
             if (task_interface->disable_update == false)
             {
-                ESP_LOGI(task_interface->name, "Updating");
+                ESP_LOGI(task_interface->name, "Update");
 
                 if (task_interface->update)
                 {
@@ -59,17 +60,21 @@ void task(void *pvparameters)
         if ((task_interface->force_publish > 0) || (last_publish_interval >= task_interface->publish_interval))
         {
 
-            ESP_LOGI(task_interface->name, "Publishing");
             task_state.last_publish = now;
 
-            if (task_interface->force_publish > 0)
+            if (task_interface->disable_publish == false)
             {
-                task_interface->force_publish -= 1;
-            }
+                ESP_LOGI(task_interface->name, "Publish");
 
-            if (task_interface->publish)
-            {
-                task_interface->publish();
+                if (task_interface->force_publish > 0)
+                {
+                    task_interface->force_publish -= 1;
+                }
+
+                if (task_interface->publish)
+                {
+                    task_interface->publish();
+                }
             }
         }
 
