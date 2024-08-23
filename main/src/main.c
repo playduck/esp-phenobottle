@@ -33,6 +33,7 @@ static const char *TAG = "MAIN";
 #define NVS_TIME_PERIOD_US (6ULL * 60ULL * 60ULL * 1000ULL * 1000ULL)
 
 interval_task_interface_t camera_task_interface = {
+    .name = "camera_task",
     .force_publish = 0,
     .disable_update = true,
     .publish_interval = 30ULL * 1000ULL,
@@ -72,5 +73,5 @@ void app_main(void)
 
     ESP_ERROR_CHECK(client_init());
 
-    xTaskCreate(&task, "camera_task", 8192, (void*)&camera_task_interface, 5, NULL);
+    xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, 5, NULL);
 }

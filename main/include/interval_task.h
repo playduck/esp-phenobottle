@@ -7,6 +7,7 @@
 #include <esp_err.h>
 
 typedef struct {
+    char* name;
     uint32_t update_interval;
     uint32_t publish_interval;
     uint32_t task_interval;
@@ -18,10 +19,5 @@ typedef struct {
     esp_err_t(*start)(void);
     esp_err_t(*end)(void);
 } interval_task_interface_t;
-
-typedef struct {
-    uint32_t last_update;
-    uint32_t last_publish;
-} interval_task_state_t;
 
 void task(void* pvparameters);
