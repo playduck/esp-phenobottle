@@ -1,6 +1,5 @@
 
 .vscode
-uploads/
 managed_components/
 sdkconfig
 sdkconfig.*
