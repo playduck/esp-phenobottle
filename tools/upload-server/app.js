@@ -1,6 +1,7 @@
 const path = require('path');
 const express = require('express');
 const multer = require('multer');
+const { time } = require('console');
 const app = express();
 
 const storage = multer.diskStorage({
@@ -14,9 +15,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
+app.use(express.json());
+
+app.post('/api/v1/measurement', (req, res) => {
+  const device_id = req.header('Device-Id');
+  const timestamp = req.header('Timestamp');
+  const {measurement_type, value} = req.body;
+
+  console.log("measurement", device_id, timestamp, measurement_type, value)
+
+  res.send({state: "success"});
+});
+
 app.post(
     '/api/v1/image', upload.single('image'), async (req, res) => {
-      console.log(req)
       const device_id = req.header('Device-Id');
       const timestamp = req.header('Timestamp');
       const image_mime = req.header('Form-Mime');
@@ -28,10 +40,7 @@ app.post(
         return res.status(400).send('Invalid request');
       }
 
-      console.log(device_id);
-      console.log(timestamp);
-      console.log(image_mime);
-
+      console.log("image", device_id, timestamp, image_mime);
       res.send({state: "success"});
 });
 

@@ -132,7 +132,7 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
 
     // setup client connection (wait for other processses to finish)
     esp_http_client_config_t* config = get_config();
-    config->url = API_V1_POST_IAMGE;
+    config->url = API_V1_POST_IMAGE;
 
     esp_http_client_handle_t client = esp_http_client_init(config);
     esp_http_client_set_method(client, HTTP_METHOD_POST);
