@@ -37,6 +37,12 @@ interval_task_interface_t camera_task_interface = {
     .disable_update = true,
     .publish_interval = 30ULL * 1000ULL,
     .update_interval = 10ULL * 1000ULL,
+    .task_interval = 1ULL * 1000ULL,
+    .init = camera_init,
+    .start = camera_start,
+    .update = camera_update,
+    .publish = camera_publish,
+    .end = camera_end
 };
 
 void app_main(void)
@@ -66,5 +72,5 @@ void app_main(void)
 
     ESP_ERROR_CHECK(client_init());
 
-    xTaskCreate(&camera_task, "camera_task", 8192, (void*)&camera_task_interface, 5, NULL);
+    xTaskCreate(&task, "camera_task", 8192, (void*)&camera_task_interface, 5, NULL);
 }

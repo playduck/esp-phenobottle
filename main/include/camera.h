@@ -1,4 +1,9 @@
-#include "esp_system.h"
+#pragma once
+#include "esp_err.h"
 #include "esp_log.h"
 
-void camera_task(void* pvparameters);
+esp_err_t camera_init();
+esp_err_t camera_start();
+esp_err_t camera_update();
+esp_err_t camera_publish();
+esp_err_t camera_end();

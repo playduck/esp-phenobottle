@@ -78,51 +78,8 @@ static camera_config_t camera_config = {
     .grab_mode = CAMERA_GRAB_LATEST // CAMERA_GRAB_LATEST. Sets when buffers should be filled
 };
 
-static interval_task_state_t cam_task_state = {
-    .last_publish = 0,
-    .last_update = 0
-};
-
-static interval_task_interface_t* cam_task_interface = NULL;
-
-esp_err_t camera_init()
-{
-
-    gpio_set_direction(CAM_PIN_PWDN, GPIO_MODE_OUTPUT);
-    gpio_set_level(CAM_PIN_PWDN, 1);
-
-    gpio_set_direction(CAM_PIN_FLASH, GPIO_MODE_OUTPUT);
-    for (uint8_t i = 0; i < 6; i++)
-    {
-        gpio_set_level(CAM_PIN_FLASH, 1);
-        vTaskDelay(8 / portTICK_PERIOD_MS);
-        gpio_set_level(CAM_PIN_FLASH, 0);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-    }
-
-    // initialize the camera
-    esp_err_t err = esp_camera_init(&camera_config);
-    if (err != ESP_OK)
-    {
-        ESP_LOGE(TAG, "Camera Init Failed");
-        return err;
-    }
-
-    // Warm-up loop to discard first few frames
-    ESP_LOGI(TAG, "Warming up camera...");
-    for (int i = 0; i < 10; i++)
-    {
-        camera_fb_t *fb = esp_camera_fb_get();
-        if (!fb)
-        {
-            continue;
-        }
-        esp_camera_fb_return(fb);
-    }
-    ESP_LOGI(TAG, "Camera done...");
-
-    return ESP_OK;
-}
+static uint32_t timestamp = 0;
+static camera_fb_t *fb = NULL;
 
 camera_fb_t* take_image()   {
     // turn on flash and wait for AGC to settle
@@ -131,6 +88,7 @@ camera_fb_t* take_image()   {
 
     // acquire a frame
     camera_fb_t *fb = esp_camera_fb_get();
+    get_current_time(&timestamp);
 
     // blink flash to show an image was taken
     for (uint8_t i = 0; i < 3; i++)
@@ -284,55 +242,65 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
     return ret;
 }
 
-void camera_task(void* pvparameters)    {
-    uint32_t now = 0;
-    uint32_t last_update_interval = 0, last_publish_interval = 0;
-    camera_fb_t *fb = NULL;
+esp_err_t camera_init()
+{
+    gpio_set_direction(CAM_PIN_PWDN, GPIO_MODE_OUTPUT);
+    gpio_set_level(CAM_PIN_PWDN, 1);
 
-    cam_task_interface = (interval_task_interface_t*)pvparameters;
-
-    camera_init();
-    while(1)    {
-        get_current_time(&now);
-
-        last_update_interval = (now - cam_task_state.last_update);
-        last_publish_interval = (now - cam_task_state.last_publish);
-
-        ESP_LOGI(TAG, "Now: %lu, Force: %u, Last Update: %lu, Last Pub: %lu", now, cam_task_interface->force_publish, last_update_interval, last_publish_interval);
-
-        if(cam_task_interface.disable_update == false)   {
-            if((cam_task_interface->force_publish > 0) || (last_update_interval >= cam_task_interface->update_interval))    {
-
-                ESP_LOGI(TAG, "Updating");
-                cam_task_state.last_update = now;
-                // get a new image, maybe publish later
-                fb = take_image();
-            }
-        }
-
-        if((cam_task_interface->force_publish > 0) || (last_publish_interval >= cam_task_interface->publish_interval))  {
-
-            ESP_LOGI(TAG, "Publishing");
-            cam_task_state.last_publish = now;
-
-            if(cam_task_interface->force_publish > 0)   {
-                cam_task_interface->force_publish -= 1;
-            }
-
-            // publish an image, either the one taken before or take a new one now
-            if(!fb) {
-                fb = take_image();
-            }
-
-            post_frame(fb, now);
-        }
-
-        // release fb to driver
-        if(fb)  {
-            esp_camera_fb_return(fb);
-            fb = NULL;
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(1000));
+    gpio_set_direction(CAM_PIN_FLASH, GPIO_MODE_OUTPUT);
+    for (uint8_t i = 0; i < 6; i++)
+    {
+        gpio_set_level(CAM_PIN_FLASH, 1);
+        vTaskDelay(8 / portTICK_PERIOD_MS);
+        gpio_set_level(CAM_PIN_FLASH, 0);
+        vTaskDelay(50 / portTICK_PERIOD_MS);
     }
+
+    // initialize the camera
+    esp_err_t err = esp_camera_init(&camera_config);
+    if (err != ESP_OK)
+    {
+        ESP_LOGE(TAG, "Camera Init Failed");
+        return err;
+    }
+
+    // Warm-up loop to discard first few frames
+    ESP_LOGI(TAG, "Warming up camera...");
+    for (int i = 0; i < 10; i++)
+    {
+        camera_fb_t *fb = esp_camera_fb_get();
+        if (!fb)
+        {
+            continue;
+        }
+        esp_camera_fb_return(fb);
+    }
+    ESP_LOGI(TAG, "Camera done...");
+
+    return ESP_OK;
+}
+
+esp_err_t camera_start() {
+    return ESP_OK;
+}
+
+esp_err_t camera_update()   {
+    fb = take_image();
+    return ESP_OK;
+}
+
+esp_err_t camera_publish()  {
+    if(!fb) {
+        fb = take_image();
+    }
+    post_frame(fb, timestamp);
+    return ESP_OK;
+}
+
+esp_err_t camera_end() {
+    if(fb)  {
+        esp_camera_fb_return(fb);
+        fb = NULL;
+    }
+    return ESP_OK;
 }
