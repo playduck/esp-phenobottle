@@ -1,4 +1,4 @@
-file(GLOB SOURCE_FILES "src/*.c" "src/*.cpp" "include/*.h")
+file(GLOB SOURCE_FILES "src/*.c" "src/**/*.c")
 
 idf_component_register(SRCS ${SOURCE_FILES}
                     INCLUDE_DIRS "include"

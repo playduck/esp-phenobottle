@@ -8,14 +8,26 @@
 
 #include "esp_camera.h"
 
+#include "timer.h"
+#include "client.h"
+#include "camera.h"
+#include "interval_task.h"
+#include "http_status_codes.h"
+
 static const char *TAG = "CAM";
 
-extern esp_err_t _http_event_handler(esp_http_client_event_t *evt);
-extern const char server_root_cert_pem_start[] asm("_binary_server_root_cert_pem_start");
-extern const char server_root_cert_pem_end[] asm("_binary_server_root_cert_pem_end");
+/* HTTP multipart form bounadry, refer https://www.ietf.org/rfc/rfc2046.txt */
+#define FILE_BOUNDARY "WarrSpacelabsDataBoundary"
+
+/* max buffer size per mulitpart TCP packet */
+#define MAX_HTTP_OUTPUT_BUFFER (1024)
+
+/* temporary assembly and response buffer */
+#define TMP_BUFFER_LENGTH (1024)
+#define TMP_HEAD_LENGTH (512)
+#define TMP_END_LENGTH (128)
 
 #define CAM_PIN_FLASH 4
-
 #define CAM_PIN_PWDN 32  // power down is not used
 #define CAM_PIN_RESET -1 // software reset will be performed
 #define CAM_PIN_XCLK 0
@@ -62,21 +74,22 @@ static camera_config_t camera_config = {
 
     .jpeg_quality = 16, // 0-63, for OV series camera sensors, lower number means higher quality
     .fb_count = 2,      // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
-    .fb_location = CAMERA_FB_IN_PSRAM,
+    .fb_location = CAMERA_FB_IN_PSRAM, // Enable PSRAM support in menuconfig !IMPORTANT
     .grab_mode = CAMERA_GRAB_LATEST // CAMERA_GRAB_LATEST. Sets when buffers should be filled
 };
 
+static interval_task_state_t cam_task_state = {
+    .last_publish = 0,
+    .last_update = 0
+};
+
+static interval_task_interface_t* cam_task_interface = NULL;
+
 esp_err_t camera_init()
 {
-    // power up the camera if PWDN pin is defined
-    if (CAM_PIN_PWDN != -1)
-    {
-        gpio_set_direction(CAM_PIN_PWDN, GPIO_MODE_OUTPUT);
-        gpio_set_level(CAM_PIN_PWDN, 1);
 
-        // pinMode(CAM_PIN_PWDN, OUTPUT);
-        // digitalWrite(CAM_PIN_PWDN, LOW);
-    }
+    gpio_set_direction(CAM_PIN_PWDN, GPIO_MODE_OUTPUT);
+    gpio_set_level(CAM_PIN_PWDN, 1);
 
     gpio_set_direction(CAM_PIN_FLASH, GPIO_MODE_OUTPUT);
     for (uint8_t i = 0; i < 6; i++)
@@ -111,158 +124,149 @@ esp_err_t camera_init()
     return ESP_OK;
 }
 
-esp_err_t camera_capture()
-{
-    struct timeval tv;
-    esp_err_t err = ESP_OK;
-
+camera_fb_t* take_image()   {
+    // turn on flash and wait for AGC to settle
     gpio_set_level(CAM_PIN_FLASH, 1);
-    vTaskDelay(800 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(800)); // TODO figure out minimum AGC flash time
 
     // acquire a frame
     camera_fb_t *fb = esp_camera_fb_get();
 
-    gettimeofday(&tv, NULL);
-    uint32_t time = (tv.tv_sec * 1000LL + (tv.tv_usec / 1000LL));
-
-    // flash to show image was taken
+    // blink flash to show an image was taken
     for (uint8_t i = 0; i < 3; i++)
     {
+        // magic value delays
         gpio_set_level(CAM_PIN_FLASH, 1);
-        vTaskDelay(20 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(20));
         gpio_set_level(CAM_PIN_FLASH, 0);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(30));
     }
 
     if (!fb)
     {
         ESP_LOGE(TAG, "Camera Capture Failed");
-        return ESP_FAIL;
+    }   else    {
+        ESP_LOGI(TAG, "Frame Captured");
     }
-    // replace this with your own function
-    //  process_image(fb->width, fb->height, fb->format, fb->buf, fb->len);
-    //  ESP_LOG_BUFFER_HEX_LEVEL(TAG, fb->buf, fb->len, ESP_LOG_INFO);
-    ESP_LOGI(TAG, "Frame Captured");
 
-    char tmp_buf[256];
+    return fb;
+}
 
-    esp_http_client_config_t config = {
-        .url = "http://192.168.3.176:8080/api/v1/image",
-        // .url = "https://warr.robin-prillwitz.de/api/v1/image",
-        .event_handler = _http_event_handler,
-        // .transport_type = HTTP_TRANSPORT_OVER_SSL,
-        // .cert_pem = server_root_cert_pem_start,
-        // .tls_version = ESP_HTTP_CLIENT_TLS_VER_TLS_1_2,
-        // .username = CONFIG_USERNAME,
-        // .password = CONFIG_PASSWORD,
-        // .auth_type = HTTP_AUTH_TYPE_BASIC,
-        // .max_authorization_retries = -1,
-    };
-    esp_http_client_handle_t client = esp_http_client_init(&config);
+esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
+    esp_err_t ret = ESP_OK;
+    if(!fb) {
+        ESP_LOGE(TAG, "Cannot publish empty image");
+        return ret;
+    }
 
+    char tmp_buf[TMP_BUFFER_LENGTH];
+    char HEAD[TMP_HEAD_LENGTH];
+    char END[TMP_END_LENGTH];
+
+    // setup client connection (wait for other processses to finish)
+    esp_http_client_config_t* config = get_config();
+    config->url = "http://192.168.178.85:8080/api/v1/image";
+
+    esp_http_client_handle_t client = esp_http_client_init(config);
     esp_http_client_set_method(client, HTTP_METHOD_POST);
 
+    // assemble request headers
     sprintf(tmp_buf, "%d", 1);
     esp_http_client_set_header(client, "Device-Id", tmp_buf);
-    sprintf(tmp_buf, "%lu", time);
+    sprintf(tmp_buf, "%lu", timestamp);
     esp_http_client_set_header(client, "Timestamp", tmp_buf);
     esp_http_client_set_header(client, "Form-Mime", "image/jpeg");
-
-#define FILE_BOUNDARY "WarrSpacelabsDataBoundary"
-
     sprintf(tmp_buf, "multipart/form-data; boundary=%s", FILE_BOUNDARY);
     esp_http_client_set_header(client, "Content-Type", tmp_buf);
 
-    char BODY[512];
-    char END[128];
+    // assemble multipart body head
     memset(tmp_buf, 0, sizeof(tmp_buf));
     sprintf(tmp_buf, "--%s\r\n", FILE_BOUNDARY);
-    strcpy(BODY, tmp_buf);
+    strcpy(HEAD, tmp_buf);
     memset(tmp_buf, 0, sizeof(tmp_buf));
     sprintf(tmp_buf, "Content-Disposition: form-data; name=\"image\"; filename=\"image.jpg\"\r\n");
-    strcat(BODY, tmp_buf);
+    strcat(HEAD, tmp_buf);
     memset(tmp_buf, 0, sizeof(tmp_buf));
     sprintf(tmp_buf, "Content-Type: application/octet-stream\r\n\r\n");
-    strcat(BODY, tmp_buf);
+    strcat(HEAD, tmp_buf);
 
+    // assemble multipart body end
     memset(tmp_buf, 0, sizeof(tmp_buf));
     sprintf(tmp_buf, "\r\n--%s--\r\n\r\n", FILE_BOUNDARY);
     strcpy(END, tmp_buf);
 
+    // write total length of body into the header
+    uint32_t total_len_to_send = fb->len + strnlen(HEAD, TMP_HEAD_LENGTH) + strnlen(END, TMP_END_LENGTH);
+    ESP_LOGI(TAG, "total length: %lu", total_len_to_send);
     memset(tmp_buf, 0, sizeof(tmp_buf));
-    uint32_t total_len_to_send = fb->len + strlen(BODY) + strlen(END);
     sprintf(tmp_buf, "%lu", total_len_to_send);
     esp_http_client_set_header(client, "Content-Length", tmp_buf);
 
-    ESP_LOGI(TAG, "total length: %lu", total_len_to_send);
-
-    uint32_t bytes_sent = 0;
-
-#define MAX_HTTP_OUTPUT_BUFFER (1024)
-
+    // open the connection
+    ESP_LOGI(TAG, "Opening Connection");
     esp_http_client_open(client, total_len_to_send);
 
-    ESP_LOGI(TAG, "Opening Connection");
-    esp_http_client_write(client, BODY, strnlen(BODY, 512));
+    // write the HEAD header
+    esp_http_client_write(client, HEAD, strnlen(HEAD, TMP_HEAD_LENGTH));
 
-    bytes_sent += strnlen(BODY, 512);
-
+    // prepare to send the framebuffer
     uint8_t *buffer = fb->buf;
-    size_t buffer_size = fb->len;
-
     uint8_t send_buffer[MAX_HTTP_OUTPUT_BUFFER];
-    size_t remaining_bytes = buffer_size;
+    size_t remaining_bytes = fb->len;
 
+    // send fb in chunks
     while (remaining_bytes > 0)
     {
-        // Calculate the number of bytes to send in this iteration
+        // calculate the number of bytes to send in this iteration
         size_t bytes_to_send = (remaining_bytes < MAX_HTTP_OUTPUT_BUFFER) ? remaining_bytes : MAX_HTTP_OUTPUT_BUFFER;
 
-        // Copy data from 'buffer' to 'send_buffer'
+        // copy data from 'buffer' to 'send_buffer'
         memcpy(send_buffer, buffer, bytes_to_send);
         buffer += bytes_to_send;
         remaining_bytes -= bytes_to_send;
-        bytes_sent += bytes_to_send;
+
+        // send the incremental package
         esp_http_client_write(client, (char *)send_buffer, bytes_to_send);
 
-        // ESP_LOGI(TAG, "Sending %d bytes (%d bytes remaining)", bytes_to_send, remaining_bytes);
-
+        // zero out buffer for next iteration
         bzero(send_buffer, MAX_HTTP_OUTPUT_BUFFER);
     }
 
-    esp_http_client_write(client, END, strnlen(END, 128));
-    bytes_sent += strnlen(END, 128);
+    // send multipart end
+    esp_http_client_write(client, END, strnlen(END, TMP_END_LENGTH));
 
-    ESP_LOGI(TAG, "Done writing, sent %lu bytes (of %lu expected)", bytes_sent, total_len_to_send);
-
+    // read server response
     int content_length = esp_http_client_fetch_headers(client);
-    int total_read_len = 0;
-    if (total_read_len < content_length && content_length <= 1024)
+    if (content_length <= TMP_BUFFER_LENGTH)
     {
         int read_len = esp_http_client_read(client, tmp_buf, content_length);
         if (read_len <= 0)
         {
             ESP_LOGE(TAG, "Error read data");
-            err = ESP_FAIL;
+            ret = ESP_FAIL;
         }
         ESP_LOGI(TAG, "read data: %s", tmp_buf);
         ESP_LOGI(TAG, "read_len = %d", read_len);
+    }   else    {
+        ESP_LOGE(TAG, "Response too long for buffer (%d of %d)", content_length, TMP_BUFFER_LENGTH);
     }
 
+    // get the response status code
     int status_code = esp_http_client_get_status_code(client);
     ESP_LOGI(TAG, "HTTP Status = %d, content_length = %llu",
              status_code,
              esp_http_client_get_content_length(client));
 
-    if (status_code >= 400)
-    {
-        ESP_LOGE(TAG, "Error sending file!");
-        err = ESP_FAIL;
-    }
-
+    // finalize the connection no matter what happend
     esp_http_client_close(client);
 
-    if (err == ESP_OK)
+    if (status_code >= HTTP_STATUS_BAD_REQUEST)
+    {
+        ESP_LOGE(TAG, "Error sending file!");
+        ret = ESP_FAIL;
+    }
+
+    if (ret == ESP_OK)
     {
         ESP_LOGI(TAG, "HTTPS Status = %d, content_length = %" PRId64,
                  esp_http_client_get_status_code(client),
@@ -270,12 +274,65 @@ esp_err_t camera_capture()
     }
     else
     {
-        ESP_LOGE(TAG, "Error perform http request %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "Error perform http request %s", esp_err_to_name(ret));
     }
-    esp_http_client_cleanup(client);
 
-    // return the frame buffer back to the driver for reuse
-    esp_camera_fb_return(fb);
-    vTaskDelete(NULL);
-    return ESP_OK;
+    // cleanup
+    esp_http_client_cleanup(client);
+    release_config();
+
+    return ret;
+}
+
+void camera_task(void* pvparameters)    {
+    uint32_t now = 0;
+    uint32_t last_update_interval = 0, last_publish_interval = 0;
+    camera_fb_t *fb = NULL;
+
+    cam_task_interface = (interval_task_interface_t*)pvparameters;
+
+    camera_init();
+    while(1)    {
+        get_current_time(&now);
+
+        last_update_interval = (now - cam_task_state.last_update);
+        last_publish_interval = (now - cam_task_state.last_publish);
+
+        ESP_LOGI(TAG, "Now: %lu, Force: %u, Last Update: %lu, Last Pub: %lu", now, cam_task_interface->force_publish, last_update_interval, last_publish_interval);
+
+        if(cam_task_interface.disable_update == false)   {
+            if((cam_task_interface->force_publish > 0) || (last_update_interval >= cam_task_interface->update_interval))    {
+
+                ESP_LOGI(TAG, "Updating");
+                cam_task_state.last_update = now;
+                // get a new image, maybe publish later
+                fb = take_image();
+            }
+        }
+
+        if((cam_task_interface->force_publish > 0) || (last_publish_interval >= cam_task_interface->publish_interval))  {
+
+            ESP_LOGI(TAG, "Publishing");
+            cam_task_state.last_publish = now;
+
+            if(cam_task_interface->force_publish > 0)   {
+                cam_task_interface->force_publish -= 1;
+            }
+
+            // publish an image, either the one taken before or take a new one now
+            if(!fb) {
+                fb = take_image();
+            }
+
+            post_frame(fb, now);
+        }
+
+        // release fb to driver
+        if(fb)  {
+            esp_camera_fb_return(fb);
+            fb = NULL;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }
