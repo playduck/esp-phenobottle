@@ -14,11 +14,13 @@ typedef struct
 
 void task(void *pvparameters)
 {
-    interval_task_state_t task_state = {
-        .last_publish = 0,
-        .last_update = 0};
-
     uint32_t now = 0;
+    get_current_time(&now);
+
+    interval_task_state_t task_state = {
+        .last_publish = now,
+        .last_update = now};
+
     uint32_t last_update_interval = 0, last_publish_interval = 0;
 
     interval_task_interface_t *task_interface = (interval_task_interface_t *)pvparameters;
@@ -59,7 +61,6 @@ void task(void *pvparameters)
 
         if ((task_interface->force_publish > 0) || (last_publish_interval >= task_interface->publish_interval))
         {
-
             task_state.last_publish = now;
 
             if (task_interface->disable_publish == false)

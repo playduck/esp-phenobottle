@@ -6,8 +6,9 @@
 
 #include <esp_err.h>
 
-typedef struct {
-    char* name;
+typedef struct
+{
+    char *name;
 
     uint32_t update_interval;
     uint32_t publish_interval;
@@ -17,11 +18,11 @@ typedef struct {
     bool disable_update;
     bool disable_publish;
 
-    esp_err_t(*init)(void);
-    esp_err_t(*update)(void);
-    esp_err_t(*publish)(void);
-    esp_err_t(*start)(void);
-    esp_err_t(*end)(void);
+    esp_err_t (*init)(void);
+    esp_err_t (*update)(void);
+    esp_err_t (*publish)(void);
+    esp_err_t (*start)(void);
+    esp_err_t (*end)(void);
 } interval_task_interface_t;
 
-void task(void* pvparameters);
+void task(void *pvparameters);

@@ -9,7 +9,7 @@
 #include "measurement.h"
 #include "temp_sensor.h"
 
-static const char* TAG = "TEMP";
+static const char *TAG = "TEMP";
 
 extern QueueHandle_t xMeasurementQueue;
 
@@ -35,7 +35,7 @@ esp_err_t QueuePut(int32_t new)
 
 esp_err_t QueueGet(int32_t *old)
 {
-    if(QueueIn == QueueOut)
+    if (QueueIn == QueueOut)
     {
         return ESP_FAIL;
     }
@@ -46,28 +46,31 @@ esp_err_t QueueGet(int32_t *old)
     return ESP_OK;
 }
 
-int32_t toFixed(float val) {
+int32_t toFixed(float val)
+{
     return (int32_t)roundf(val * 1000.0f);
 }
 
-float toFloat(int32_t val) {
-
+float toFloat(int32_t val)
+{
     return (float)val / 1000.0f;
 }
 
-
-esp_err_t temp_init()   {
+esp_err_t temp_init()
+{
     // TODO: init temp sensor and tec driver
     return ESP_OK;
 }
 
-esp_err_t temp_start()  {
+esp_err_t temp_start()
+{
     return ESP_OK;
 }
 uint32_t tmp_counter = 0;
-esp_err_t temp_update() {
+esp_err_t temp_update()
+{
     // take temp sensor reading
-    float temp = sinf(tmp_counter++ / 250.0)  * 20.0 + 10.0;    // FIXME
+    float temp = sinf(tmp_counter++ / 250.0) * 20.0 + 10.0; // FIXME
     QueuePut(toFixed(temp));
     ESP_LOGD(TAG, "Temp: %f", temp);
 
@@ -75,7 +78,8 @@ esp_err_t temp_update() {
     return ESP_OK;
 }
 
-esp_err_t temp_publish()    {
+esp_err_t temp_publish()
+{
     uint32_t time = 0;
     get_current_time(&time);
 
@@ -83,7 +87,8 @@ esp_err_t temp_publish()    {
     uint16_t count = 0;
     float accumulator = 0.0f;
     int32_t tmp = 0;
-    while(QueueGet(&tmp) == ESP_OK) {
+    while (QueueGet(&tmp) == ESP_OK)
+    {
         accumulator += toFloat(tmp);
         count++;
     }
@@ -95,15 +100,16 @@ esp_err_t temp_publish()    {
     measurement_t measurement = {
         .timestamp = time,
         .type = "Temperature",
-        .value = averageTemp
-    };
-    if (xQueueSend(xMeasurementQueue, &measurement, pdTICKS_TO_MS(500)) != pdPASS) {
+        .value = averageTemp};
+    if (xQueueSend(xMeasurementQueue, &measurement, pdTICKS_TO_MS(500)) != pdPASS)
+    {
         ESP_LOGE(TAG, "Cannot insert message into queue");
     }
 
     return ESP_OK;
 }
 
-esp_err_t temp_end()    {
+esp_err_t temp_end()
+{
     return ESP_OK;
 }
