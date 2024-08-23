@@ -25,7 +25,6 @@
 #include "interval_task.h"
 #include "time_sync.h"
 #include "client.h"
-#include "sensors/camera.h"
 #include "tasks.h"
 #include "measurement.h"
 
@@ -68,4 +67,7 @@ void app_main(void)
     xTaskCreate(&task, temp_task_interface.name, 2048, (void*)&temp_task_interface, configMAX_PRIORITIES - 2, NULL);
     xTaskCreate(&task, gas_task_interface.name, 2048, (void*)&gas_task_interface, configMAX_PRIORITIES - 6, NULL);
     xTaskCreate(&task, od_task_interface.name, 2048, (void*)&od_task_interface, configMAX_PRIORITIES - 4, NULL);
+
+    xTaskCreate(&task, illumination_task_interface.name, 2048, (void*)&illumination_task_interface, configMAX_PRIORITIES - 8, NULL);
+    xTaskCreate(&task, mixing_task_interface.name, 2048, (void*)&mixing_task_interface, configMAX_PRIORITIES - 5, NULL);
 }

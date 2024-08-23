@@ -6,10 +6,14 @@
 #include "interval_task.h"
 
 #include "task_manager.h"
+
 #include "sensors/camera.h"
 #include "sensors/temp_sensor.h"
 #include "sensors/gas_sensor.h"
 #include "sensors/od_sensor.h"
+
+#include "tasks/illumination.h"
+#include "tasks/mixing.h"
 
 interval_task_interface_t task_manager_interface = {
     .name = "task_manager",
@@ -83,6 +87,36 @@ interval_task_interface_t od_task_interface = {
     .update = od_update,
     .publish = od_publish,
     .end = od_end
+};
+
+interval_task_interface_t illumination_task_interface = {
+    .name = "illumination_task",
+    .force_publish = 0,
+    .disable_update = false,
+    .disable_publish = true,
+    .publish_interval = 10ULL * 1000ULL,
+    .update_interval = 5ULL * 1000ULL,
+    .task_interval = 1000ULL,
+    .init = illumination_init,
+    .start = illumination_start,
+    .update = illumination_update,
+    .publish = illumination_publish,
+    .end = illumination_end
+};
+
+interval_task_interface_t mixing_task_interface = {
+    .name = "mixing_task",
+    .force_publish = 0,
+    .disable_update = false,
+    .disable_publish = true,
+    .publish_interval = 10ULL * 1000ULL,
+    .update_interval = 5ULL * 1000ULL,
+    .task_interval = 1000ULL,
+    .init = mixing_init,
+    .start = mixing_start,
+    .update = mixing_update,
+    .publish = mixing_publish,
+    .end = mixing_end
 };
 
 #endif
