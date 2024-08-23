@@ -66,4 +66,6 @@ void app_main(void)
     xTaskCreate(&task, task_manager_interface.name, 4096, (void*)&task_manager_interface, configMAX_PRIORITIES - 3, NULL);
     xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, configMAX_PRIORITIES - 5, NULL);
     xTaskCreate(&task, temp_task_interface.name, 2048, (void*)&temp_task_interface, configMAX_PRIORITIES - 2, NULL);
+    xTaskCreate(&task, gas_task_interface.name, 2048, (void*)&gas_task_interface, configMAX_PRIORITIES - 6, NULL);
+    xTaskCreate(&task, od_task_interface.name, 2048, (void*)&od_task_interface, configMAX_PRIORITIES - 4, NULL);
 }

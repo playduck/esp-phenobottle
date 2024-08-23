@@ -8,6 +8,8 @@
 #include "task_manager.h"
 #include "sensors/camera.h"
 #include "sensors/temp_sensor.h"
+#include "sensors/gas_sensor.h"
+#include "sensors/od_sensor.h"
 
 interval_task_interface_t task_manager_interface = {
     .name = "task_manager",
@@ -52,6 +54,35 @@ interval_task_interface_t temp_task_interface = {
     .update = temp_update,
     .publish = temp_publish,
     .end = temp_end
+};
+interval_task_interface_t gas_task_interface = {
+    .name = "co2_task",
+    .force_publish = 0,
+    .disable_update = false,
+    .disable_publish = false,
+    .publish_interval = 60ULL * 1000ULL,
+    .update_interval = 10ULL * 1000ULL,
+    .task_interval = 1000ULL,
+    .init = gas_init,
+    .start = gas_start,
+    .update = gas_update,
+    .publish = gas_publish,
+    .end = gas_end
+};
+
+interval_task_interface_t od_task_interface = {
+    .name = "od_task",
+    .force_publish = 0,
+    .disable_update = false,
+    .disable_publish = false,
+    .publish_interval = 5ULL * 60ULL * 1000ULL,
+    .update_interval = 60ULL * 1000ULL,
+    .task_interval = 1000ULL,
+    .init = od_init,
+    .start = od_start,
+    .update = od_update,
+    .publish = od_publish,
+    .end = od_end
 };
 
 #endif

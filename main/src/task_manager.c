@@ -14,6 +14,8 @@
 
 extern interval_task_interface_t camera_task_interface;
 extern interval_task_interface_t temp_task_interface;
+extern interval_task_interface_t gas_task_interface;
+extern interval_task_interface_t od_task_interface;
 
 static const char *TAG = "Task Manager";
 uint8_t t = 0;
