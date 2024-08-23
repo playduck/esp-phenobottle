@@ -27,6 +27,7 @@
 #include "client.h"
 #include "camera.h"
 #include "tasks.h"
+#include "measurement.h"
 
 static const char *TAG = "MAIN";
 
@@ -59,6 +60,8 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_start_periodic(nvs_update_timer, NVS_TIME_PERIOD_US));
 
     ESP_ERROR_CHECK(client_init());
+
+    xTaskCreate(&send_measurement_task, "Measurement", 2048, (void*)NULL, configMAX_PRIORITIES - 4, NULL);
 
     xTaskCreate(&task, task_manager_interface.name, 4096, (void*)&task_manager_interface, configMAX_PRIORITIES - 3, NULL);
     xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, configMAX_PRIORITIES - 5, NULL);

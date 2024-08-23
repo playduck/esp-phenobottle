@@ -1,19 +1,22 @@
 #include "math.h"
 
+#include "freertos/FreeRTOS.h"
+
 #include "esp_err.h"
 #include "esp_log.h"
 
-#include "esp_random.h" // FIXME
-
+#include "timer.h"
+#include "measurement.h"
 #include "temp_sensor.h"
 
 static const char* TAG = "TEMP";
+
+extern QueueHandle_t xMeasurementQueue;
 
 #define QUEUE_ELEMENTS 100
 #define QUEUE_SIZE (QUEUE_ELEMENTS + 1)
 int32_t Queue[QUEUE_SIZE];
 uint16_t QueueIn, QueueOut;
-
 
 esp_err_t QueuePut(int32_t new)
 {
@@ -73,6 +76,9 @@ esp_err_t temp_update() {
 }
 
 esp_err_t temp_publish()    {
+    uint32_t time = 0;
+    get_current_time(&time);
+
     // decimation filter
     uint16_t count = 0;
     float accumulator = 0.0f;
@@ -86,7 +92,14 @@ esp_err_t temp_publish()    {
     float averageTemp = accumulator / (float)count;
 
     // post downsapled sensor reading
-    ESP_LOGI(TAG, "Average Temp since last pub: %f", averageTemp);
+    measurement_t measurement = {
+        .timestamp = time,
+        .type = "Temperature",
+        .value = averageTemp
+    };
+    if (xQueueSend(xMeasurementQueue, &measurement, pdTICKS_TO_MS(500)) != pdPASS) {
+        ESP_LOGE(TAG, "Cannot insert message into queue");
+    }
 
     return ESP_OK;
 }
