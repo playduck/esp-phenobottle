@@ -6,8 +6,8 @@
 #include "interval_task.h"
 
 #include "task_manager.h"
-#include "camera.h"
-#include "temp_sensor.h"
+#include "sensors/camera.h"
+#include "sensors/temp_sensor.h"
 
 interval_task_interface_t task_manager_interface = {
     .name = "task_manager",

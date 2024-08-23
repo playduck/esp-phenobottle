@@ -10,7 +10,7 @@
 
 #include "timer.h"
 #include "client.h"
-#include "camera.h"
+#include "sensors/camera.h"
 #include "interval_task.h"
 #include "http_status_codes.h"
 #include "endpoints.h"

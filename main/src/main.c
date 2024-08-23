@@ -25,7 +25,7 @@
 #include "interval_task.h"
 #include "time_sync.h"
 #include "client.h"
-#include "camera.h"
+#include "sensors/camera.h"
 #include "tasks.h"
 #include "measurement.h"
 

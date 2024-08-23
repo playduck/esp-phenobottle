@@ -7,7 +7,7 @@
 
 #include "timer.h"
 #include "measurement.h"
-#include "temp_sensor.h"
+#include "sensors/temp_sensor.h"
 
 static const char *TAG = "TEMP";
 
