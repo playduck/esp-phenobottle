@@ -8,7 +8,7 @@ This interfaces with the [phenobottle-interface](https://github.com/playduck/phe
 
 ## Build
 
-Building using esp-idf (tested using ESP-IDF v5.2.2):
+Building using esp-idf (tested using ESP-IDF v5.4.0):
 ```bash
 idf.py set-target esp32
 idf.py menuconfig # set connection parameters
