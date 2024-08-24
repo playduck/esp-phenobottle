@@ -63,18 +63,19 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_start_periodic(nvs_update_timer, NVS_TIME_PERIOD_US));
 
     ESP_ERROR_CHECK(client_init());
+    ESP_ERROR_CHECK(i2c_init());
 
     // FIXME
-    initlizeCat(&cat_device, 0xaa, I2C_USER_PORT);
+    initlizeCat(&cat_device, 0b0100111, I2C_USER_PORT);
 
     xTaskCreate(&send_measurement_task, "Measurement", 4096, (void*)NULL, configMAX_PRIORITIES - 4, NULL);
 
     xTaskCreate(&task, task_manager_interface.name, 4096, (void*)&task_manager_interface, configMAX_PRIORITIES - 3, NULL);
     xTaskCreate(&task, camera_task_interface.name, 8192, (void*)&camera_task_interface, configMAX_PRIORITIES - 5, NULL);
-    xTaskCreate(&task, temp_task_interface.name, 2048, (void*)&temp_task_interface, configMAX_PRIORITIES - 2, NULL);
-    xTaskCreate(&task, gas_task_interface.name, 2048, (void*)&gas_task_interface, configMAX_PRIORITIES - 6, NULL);
-    xTaskCreate(&task, od_task_interface.name, 2048, (void*)&od_task_interface, configMAX_PRIORITIES - 4, NULL);
+    xTaskCreate(&task, temp_task_interface.name, 4096, (void*)&temp_task_interface, configMAX_PRIORITIES - 2, NULL);
+    xTaskCreate(&task, gas_task_interface.name, 4096, (void*)&gas_task_interface, configMAX_PRIORITIES - 6, NULL);
+    xTaskCreate(&task, od_task_interface.name, 4096, (void*)&od_task_interface, configMAX_PRIORITIES - 4, NULL);
 
-    xTaskCreate(&task, illumination_task_interface.name, 2048, (void*)&illumination_task_interface, configMAX_PRIORITIES - 8, NULL);
-    xTaskCreate(&task, mixing_task_interface.name, 2048, (void*)&mixing_task_interface, configMAX_PRIORITIES - 5, NULL);
+    xTaskCreate(&task, illumination_task_interface.name, 4096, (void*)&illumination_task_interface, configMAX_PRIORITIES - 8, NULL);
+    xTaskCreate(&task, mixing_task_interface.name, 4096, (void*)&mixing_task_interface, configMAX_PRIORITIES - 5, NULL);
 }
