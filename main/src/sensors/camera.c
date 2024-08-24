@@ -20,9 +20,6 @@ static const char *TAG = "CAM";
 /* HTTP multipart form bounadry, refer https://www.ietf.org/rfc/rfc2046.txt */
 #define FILE_BOUNDARY "WarrSpacelabsDataBoundary"
 
-/* max buffer size per mulitpart TCP packet */
-// #define MAX_HTTP_OUTPUT_BUFFER (1024)
-
 /* temporary assembly and response buffer */
 #define TMP_BUFFER_LENGTH (1024)
 #define TMP_HEAD_LENGTH (512)
@@ -66,24 +63,25 @@ static camera_config_t camera_config = {
     .pin_href = CAM_PIN_HREF,
     .pin_pclk = CAM_PIN_PCLK,
 
-    .xclk_freq_hz = 20000000, // EXPERIMENTAL: Set to 16MHz on ESP32-S2 or ESP32-S3 to enable EDMA mode
+    .xclk_freq_hz = 20000000, // EXPERIMENTAL: Set..16MHz on ESP32-S2 or ESP32-S3..enable EDMA mode
     .ledc_timer = LEDC_TIMER_0,
     .ledc_channel = LEDC_CHANNEL_0,
 
     .pixel_format = PIXFORMAT_JPEG, // YUV422,GRAYSCALE,RGB565,JPEG
     .frame_size = FRAMESIZE_UXGA,   // QQVGA-UXGA, For ESP32, do not use sizes above QVGA when not JPEG. The performance of the ESP32-S series has improved a lot, but JPEG mode always gives better frame rates.
 
-    .jpeg_quality = 16, // 0-63, for OV series camera sensors, lower number means higher quality
-    .fb_count = 2,      // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
+    .jpeg_quality = 4,                // 0-63, for OV series camera sensors, lower number means higher quality
+    .fb_count = 2,                     // When jpeg mode is used, if fb_count more than one, the driver will work in continuous mode.
     .fb_location = CAMERA_FB_IN_PSRAM, // Enable PSRAM support in menuconfig !IMPORTANT
-    .grab_mode = CAMERA_GRAB_LATEST // CAMERA_GRAB_LATEST. Sets when buffers should be filled
+    .grab_mode = CAMERA_GRAB_LATEST    // CAMERA_GRAB_LATEST. Sets when buffers should be filled
 };
 
 static uint32_t timestamp = 0;
 static camera_fb_t *fb = NULL;
 
-camera_fb_t* take_image()   {
-    // turn on flash and wait for AGC to settle
+camera_fb_t *take_image()
+{
+    // turn on flash and wait for AGC..settle
     gpio_set_level(CAM_PIN_FLASH, 1);
     vTaskDelay(pdMS_TO_TICKS(800)); // TODO figure out minimum AGC flash time
 
@@ -102,11 +100,12 @@ camera_fb_t* take_image()   {
             gpio_set_level(CAM_PIN_FLASH, 0);
             vTaskDelay(pdMS_TO_TICKS(70));
         }
-
-    }   else    {
+    }
+    else
+    {
         ESP_LOGI(TAG, "Frame Captured");
 
-        // blink flash to show an image was taken
+        // blink flash..show an image was taken
         for (uint8_t i = 0; i < 3; i++)
         {
             gpio_set_level(CAM_PIN_FLASH, 1);
@@ -114,14 +113,15 @@ camera_fb_t* take_image()   {
             gpio_set_level(CAM_PIN_FLASH, 0);
             vTaskDelay(pdMS_TO_TICKS(30));
         }
-
     }
     return fb;
 }
 
-esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
+esp_err_t post_frame(camera_fb_t *fb, uint32_t timestamp)
+{
     esp_err_t ret = ESP_OK;
-    if(!fb) {
+    if (!fb)
+    {
         ESP_LOGE(TAG, "Cannot publish empty image");
         return ret;
     }
@@ -130,8 +130,8 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
     char HEAD[TMP_HEAD_LENGTH];
     char END[TMP_END_LENGTH];
 
-    // setup client connection (wait for other processses to finish)
-    esp_http_client_config_t* config = get_config();
+    // setup client connection (wait for other processses..finish)
+    esp_http_client_config_t *config = get_config();
     config->url = API_V1_POST_IMAGE;
 
     esp_http_client_handle_t client = esp_http_client_init(config);
@@ -176,7 +176,7 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
     // write the HEAD header
     esp_http_client_write(client, HEAD, strnlen(HEAD, TMP_HEAD_LENGTH));
 
-    // prepare to send the framebuffer
+    // prepare..send the framebuffer
     uint8_t *buffer = fb->buf;
     uint8_t send_buffer[MAX_HTTP_OUTPUT_BUFFER];
     size_t remaining_bytes = fb->len;
@@ -184,10 +184,10 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
     // send fb in chunks
     while (remaining_bytes > 0)
     {
-        // calculate the number of bytes to send in this iteration
+        // calculate the number of bytes..send in this iteration
         size_t bytes_to_send = (remaining_bytes < MAX_HTTP_OUTPUT_BUFFER) ? remaining_bytes : MAX_HTTP_OUTPUT_BUFFER;
 
-        // copy data from 'buffer' to 'send_buffer'
+        // copy data from 'buffer'..'send_buffer'
         memcpy(send_buffer, buffer, bytes_to_send);
         buffer += bytes_to_send;
         remaining_bytes -= bytes_to_send;
@@ -214,7 +214,9 @@ esp_err_t post_frame(camera_fb_t* fb, uint32_t timestamp)  {
         }
         ESP_LOGI(TAG, "read data: %s", tmp_buf);
         ESP_LOGI(TAG, "read_len = %d", read_len);
-    }   else    {
+    }
+    else
+    {
         ESP_LOGE(TAG, "Response too long for buffer (%d of %d)", content_length, TMP_BUFFER_LENGTH);
     }
 
@@ -260,7 +262,7 @@ esp_err_t camera_init()
     for (uint8_t i = 0; i < 6; i++)
     {
         gpio_set_level(CAM_PIN_FLASH, 1);
-        vTaskDelay(8 / portTICK_PERIOD_MS);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
         gpio_set_level(CAM_PIN_FLASH, 0);
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
@@ -273,8 +275,36 @@ esp_err_t camera_init()
         return err;
     }
 
-    // Warm-up loop to discard first few frames
+    // Warm-up loop..discard first few frames
     ESP_LOGI(TAG, "Warming up camera...");
+
+    // OV2640 Reg map: https://www.plexishop.it/pdf/OV2640.pdf
+    sensor_t *s = esp_camera_sensor_get();
+    s->set_brightness(s, 1);                // -2..2, internally 0..5
+    s->set_contrast(s, -1);                  // -2..2, internally 0..5
+    s->set_saturation(s, 1);                // -2..2, internally 0..5
+    s->set_special_effect(s, 0);            // 0..6 (0 - No Effect, 1 - Negative, 2 - Grayscale, 3 - Red Tint, 4 - Green Tint, 5 - Blue Tint, 6 - Sepia)
+    s->set_whitebal(s, 1);                  // 0 = disable , 1 = enable
+    s->set_awb_gain(s, 1);                  // 0 = disable , 1 = enable
+    s->set_wb_mode(s, 1);                   // 0..4 - if awb_gain enabled (0 - Auto, 1 - Sunny, 2 - Cloudy, 3 - Office, 4 - Home)
+    s->set_exposure_ctrl(s, 1);             // 0 = disable , 1 = enable
+    s->set_aec2(s, 1);                      // 0 = disable , 1 = enable
+    s->set_ae_level(s, 1);                  // -2..2
+    s->set_aec_value(s, 300);               // 0..1200
+    s->set_gain_ctrl(s, 1);                 // 0 = disable , 1 = enable
+    s->set_agc_gain(s, 16);                  // 0..30
+    s->set_gainceiling(s, GAINCEILING_64X); // 0..6
+    s->set_bpc(s, 1);                       // black pixel correction 0 = disable , 1 = enable
+    s->set_wpc(s, 1);                       // white pixel correction 0 = disable , 1 = enable
+    s->set_raw_gma(s, 1);                   // 0 = disable , 1 = enable
+    s->set_lenc(s, 0);                      // lens correction 0 = disable , 1 = enable
+    s->set_hmirror(s, 0);                   // horizontal mirror 0 = disable , 1 = enable
+    s->set_vflip(s, 0);                     // vertical flip 0 = disable , 1 = enable
+    s->set_dcw(s, 0);                       // downsize? 0 = disable , 1 = enable
+    s->set_colorbar(s, 0);                  // test pattern 0 = disable , 1 = enable
+
+    // take a few images and discard them
+    // this wakes the sensor up and initilizes AWB
     for (int i = 0; i < 10; i++)
     {
         camera_fb_t *fb = esp_camera_fb_get();
@@ -284,30 +314,37 @@ esp_err_t camera_init()
         }
         esp_camera_fb_return(fb);
     }
-    ESP_LOGI(TAG, "Camera done...");
+
+    ESP_LOGI(TAG, "Camera done");
 
     return ESP_OK;
 }
 
-esp_err_t camera_start() {
+esp_err_t camera_start()
+{
     return ESP_OK;
 }
 
-esp_err_t camera_update()   {
+esp_err_t camera_update()
+{
     fb = take_image();
     return ESP_OK;
 }
 
-esp_err_t camera_publish()  {
-    if(!fb) {
+esp_err_t camera_publish()
+{
+    if (!fb)
+    {
         fb = take_image();
     }
     post_frame(fb, timestamp);
     return ESP_OK;
 }
 
-esp_err_t camera_end() {
-    if(fb)  {
+esp_err_t camera_end()
+{
+    if (fb)
+    {
         esp_camera_fb_return(fb);
         fb = NULL;
     }
