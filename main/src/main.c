@@ -27,11 +27,15 @@
 #include "client.h"
 #include "tasks.h"
 #include "measurement.h"
+#include "i2c_user.h"
+#include "cat9555.h"
 
 static const char *TAG = "MAIN";
 
 /* NVS fetch and store time period: hours * minutes * seconds * milliseconds * microseconds */
 #define NVS_TIME_PERIOD_US (6ULL * 60ULL * 60ULL * 1000ULL * 1000ULL)
+
+cat_state_t cat_device;
 
 void app_main(void)
 {
@@ -59,6 +63,7 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_start_periodic(nvs_update_timer, NVS_TIME_PERIOD_US));
 
     ESP_ERROR_CHECK(client_init());
+    ESP_ERROR_CHECK(initlizeCat(&cat_device, 0xaa, I2C_USER_PORT));
 
     xTaskCreate(&send_measurement_task, "Measurement", 4096, (void*)NULL, configMAX_PRIORITIES - 4, NULL);
 
