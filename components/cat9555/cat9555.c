@@ -122,7 +122,7 @@ esp_err_t setPolarity(cat_state_t *dev, cat_port_t port, cat_pin_t pin, cat_pola
     tx_buffer[1] = 0x00;
     for (uint8_t lpin = 0; lpin <= 7; lpin++)
     {
-        uint8_t bit = dev->polarities[port * 8 + lpin] == invert ? 1 : 0;
+        uint8_t bit = dev->polarities[port * 8 + lpin] == normal ? 1 : 0;
         tx_buffer[1] |= bit << lpin;
     }
 
