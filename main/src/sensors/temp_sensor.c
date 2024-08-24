@@ -9,15 +9,23 @@
 #include "measurement.h"
 #include "ringbuffer.h"
 #include "sensors/temp_sensor.h"
+#include "i2c_user.h"
+
+#include "sht3x.h"
 
 static const char *TAG = "TEMP";
 
 extern QueueHandle_t xMeasurementQueue;
 static ringbuffer_t buffer;
 
+static sht3x_device_t sht3x_dev;
+
 esp_err_t temp_init()
 {
     // TODO: init temp sensor and tec driver
+    sht3x_init(&sht3x_dev, address_A, I2C_USER_PORT);
+
+
     return ESP_OK;
 }
 
@@ -30,7 +38,14 @@ static uint32_t tmp_counter = 0;
 esp_err_t temp_update()
 {
     // take temp sensor reading
-    float temp = sinf(tmp_counter++ / 250.0) * 20.0 + 10.0; // FIXME
+    sht3x_start_measurement(&sht3x_dev, SINGLE_SHOT_CLOCK_STRETCHING_ENABLED_HIGH_RELIABILITY);
+
+    sht3x_measurement_t measurement;
+    sht3x_read_measurement(&sht3x_dev, &measurement);
+
+    // float temp = sinf(tmp_counter++ / 250.0) * 20.0 + 10.0; // FIXME
+    float temp = measurement.temperature_degC;
+
     buffer_write(&buffer, toFixed(temp));
     ESP_LOGD(TAG, "Temp: %f", temp);
 

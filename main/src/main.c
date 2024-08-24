@@ -45,7 +45,7 @@ void app_main(void)
 
     ESP_LOGI(TAG, "Hello World, string app_main");
 
-    // FIXME do something less dumb here
+    // TODO do something less dumb here
     ESP_ERROR_CHECK(example_connect());
 
     if (esp_reset_reason() == ESP_RST_POWERON)
@@ -63,7 +63,9 @@ void app_main(void)
     ESP_ERROR_CHECK(esp_timer_start_periodic(nvs_update_timer, NVS_TIME_PERIOD_US));
 
     ESP_ERROR_CHECK(client_init());
-    ESP_ERROR_CHECK(initlizeCat(&cat_device, 0xaa, I2C_USER_PORT));
+
+    // FIXME
+    initlizeCat(&cat_device, 0xaa, I2C_USER_PORT);
 
     xTaskCreate(&send_measurement_task, "Measurement", 4096, (void*)NULL, configMAX_PRIORITIES - 4, NULL);
 
