@@ -5,7 +5,7 @@
 #include "esp_system.h"
 #include "esp_tls.h"
 #include "esp_http_client.h"
-
+#include "esp_pm.h"
 #include "esp_camera.h"
 
 #include "timer.h"
@@ -78,12 +78,15 @@ static camera_config_t camera_config = {
 
 static uint32_t timestamp = 0;
 static camera_fb_t *fb = NULL;
+static esp_pm_lock_handle_t cam_power_lock;
 
 camera_fb_t *take_image()
 {
     // turn on flash and wait for AGC..settle
     gpio_set_level(CAM_PIN_FLASH, 1);
     vTaskDelay(pdMS_TO_TICKS(800)); // TODO figure out minimum AGC flash time
+
+    esp_pm_lock_acquire(cam_power_lock);
 
     // acquire a frame
     camera_fb_t *fb = esp_camera_fb_get();
@@ -117,6 +120,8 @@ camera_fb_t *take_image()
             vTaskDelay(pdMS_TO_TICKS(30));
         }
     }
+
+    esp_pm_lock_release(cam_power_lock);
     return fb;
 }
 
@@ -258,6 +263,9 @@ esp_err_t post_frame(camera_fb_t *fb, uint32_t timestamp)
 
 esp_err_t camera_init()
 {
+    esp_pm_lock_create(ESP_PM_CPU_FREQ_MAX, 0, "Cam Lock", &cam_power_lock);
+    esp_pm_lock_acquire(cam_power_lock);
+
     gpio_set_direction(CAM_PIN_PWDN, GPIO_MODE_OUTPUT);
     gpio_set_level(CAM_PIN_PWDN, 1);
 
@@ -319,7 +327,7 @@ esp_err_t camera_init()
     }
 
     ESP_LOGI(TAG, "Camera done");
-
+    esp_pm_lock_release(cam_power_lock);
     return ESP_OK;
 }
 

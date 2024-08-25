@@ -19,6 +19,7 @@
 #include "protocol_examples_common.h"
 #include "protocol_examples_utils.h"
 #include "esp_psram.h"
+#include "esp_pm.h"
 
 #include "sdkconfig.h"
 
@@ -51,6 +52,8 @@ void app_main(void)
 
     // TODO do something less dumb here
     ESP_ERROR_CHECK(example_connect());
+    ESP_ERROR_CHECK(esp_wifi_set_inactive_time(WIFI_IF_STA, 10));
+    esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 
     if (esp_reset_reason() == ESP_RST_POWERON)
     {
@@ -82,4 +85,14 @@ void app_main(void)
 
     xTaskCreate(&task, illumination_task_interface.name, 4096, (void*)&illumination_task_interface, configMAX_PRIORITIES - 8, NULL);
     xTaskCreate(&task, mixing_task_interface.name, 4096, (void*)&mixing_task_interface, configMAX_PRIORITIES - 5, NULL);
+
+    // allow all tasks to finish their startup
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    esp_pm_config_t pm_config = {
+            .max_freq_mhz = 160,
+            .min_freq_mhz = 10,
+            .light_sleep_enable = true
+    };
+    ESP_ERROR_CHECK( esp_pm_configure(&pm_config) );
 }

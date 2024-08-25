@@ -7,6 +7,7 @@
 #include "freertos/semphr.h"
 #include "esp_err.h"
 #include "esp_log.h"
+#include "esp_pm.h"
 
 #define STATS_DURATION pdMS_TO_TICKS(30000)
 #define STATS_BLINDTIME pdMS_TO_TICKS(10000)
@@ -62,8 +63,7 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
         ret = ESP_ERR_INVALID_STATE;
         goto exit;
     }
-    printf("| Task            | Run Time | Percentage\n");
-    printf("| --------------- | -------- | ----------\n");
+    printf("\nTask            Run Time Percentage\n");
     // Match each task in start_array to those in the end_array
     for (int i = 0; i < start_array_size; i++)
     {
@@ -84,7 +84,7 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
         {
             uint32_t task_elapsed_time = end_array[k].ulRunTimeCounter - start_array[i].ulRunTimeCounter;
             uint32_t percentage_time = (task_elapsed_time * 100UL) / (total_elapsed_time * CONFIG_FREERTOS_NUMBER_OF_CORES);
-            printf("| %-15s | %-8lu | %02lu%% [", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
+            printf("%-15s %-8lu %02lu%% [", start_array[i].pcTaskName, task_elapsed_time, percentage_time);
 
             const uint8_t bar_length = 50;
             for(uint8_t i = 0; i < bar_length; i++) {
@@ -115,6 +115,10 @@ static esp_err_t print_real_time_stats(TickType_t xTicksToWait)
             printf("| %-15s | Created\n", end_array[i].pcTaskName);
         }
     }
+    printf("\n");
+    ESP_ERROR_CHECK(esp_pm_dump_locks(stdout));
+    printf("\n");
+
     ret = ESP_OK;
 
 exit: // Common return path
@@ -128,7 +132,7 @@ void stats_task(void *arg)
     // Print real time stats periodically
     while (1)
     {
-        ESP_LOGI(TAG, "\n\nGetting real time stats over %" PRIu32 " ticks\n", STATS_DURATION);
+        ESP_LOGI(TAG, "\n\nGetting realtime stats over %" PRIu32 " ticks\n", STATS_DURATION);
         if (print_real_time_stats(STATS_DURATION) != ESP_OK)
         {
             ESP_LOGE(TAG, "Error getting real time stats\n");

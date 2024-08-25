@@ -7,7 +7,7 @@ static const char* TAG = "I2C";
 
 esp_err_t i2c_init()    {
     i2c_master_bus_config_t i2c_mst_config = {
-        .clk_source = SOC_MOD_CLK_XTAL,
+        .clk_source = I2C_CLK_SRC_DEFAULT,
         .i2c_port = I2C_USER_PORT,
         .scl_io_num = I2C_USER_MASTER_SCL_IO,
         .sda_io_num = I2C_USER_MASTER_SDA_IO,
