@@ -27,6 +27,7 @@
 #include "client.h"
 #include "tasks.h"
 #include "measurement.h"
+#include "stats.h"
 #include "i2c_user.h"
 #include "cat9555.h"
 
@@ -39,6 +40,9 @@ cat_state_t cat_device;
 
 void app_main(void)
 {
+    xTaskCreate(&stats_task, "Stats", 4096, (void*)NULL, configMAX_PRIORITIES - 8, NULL);
+    vTaskDelay(pdMS_TO_TICKS(100));
+
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
