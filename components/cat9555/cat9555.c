@@ -25,6 +25,7 @@ esp_err_t initlizeCat(cat_state_t *dev, uint8_t address, i2c_port_num_t i2c_port
         ESP_LOGE(TAG, "Failed to create Mutex");
         return ESP_FAIL;
     }
+    xSemaphoreTake(dev->mutex, portMAX_DELAY);
 
     i2c_device_config_t dev_cfg = {
         .dev_addr_length = I2C_ADDR_BIT_LEN_7,
@@ -55,17 +56,20 @@ esp_err_t initlizeCat(cat_state_t *dev, uint8_t address, i2c_port_num_t i2c_port
     }
 
     // TODO do this more elegantly
-    for (uint8_t port = 0; port <= 1; port++)
-    {
-        for (uint8_t pin = 0; pin <= 7; pin++)
-        {
-            setDirection(dev, port, pin, input);
-            setPolarity(dev, port, pin, normal);
-            setLevel(dev, port, pin, low);
-        }
-    }
+    uint8_t tx_buffer[3];
+    tx_buffer[0] = CAT_CMD_CONFIG_0;
+    tx_buffer[1] = 0x00;
+    tx_buffer[2] = 0x00;
+    i2c_master_transmit(dev->i2c_dev, tx_buffer, 3, I2C_USER_TIMEOUT_MS);
+    tx_buffer[0] = CAT_CMD_POLARITY_0;
+    i2c_master_transmit(dev->i2c_dev, tx_buffer, 3, I2C_USER_TIMEOUT_MS);
+    tx_buffer[0] = CAT_CMD_OUTPUT_0;
+    i2c_master_transmit(dev->i2c_dev, tx_buffer, 3, I2C_USER_TIMEOUT_MS);
 
     ESP_LOGI(TAG, "Initilized device");
+
+    xSemaphoreGive(dev->mutex);
+
     return ESP_OK;
 }
 
@@ -77,19 +81,19 @@ esp_err_t setDirection(cat_state_t *dev, cat_port_t port, cat_pin_t pin, cat_dir
 
     uint8_t tx_buffer[2];
 
-    if (port == port0)
+    if (port == CAT_PORT_0)
     {
-        tx_buffer[0] = config0;
+        tx_buffer[0] = CAT_CMD_CONFIG_0;
     }
     else
     {
-        tx_buffer[0] = config1;
+        tx_buffer[0] = CAT_CMD_CONFIG_1;
     }
 
     tx_buffer[1] = 0x00;
     for (uint8_t lpin = 0; lpin <= 7; lpin++)
     {
-        uint8_t bit = dev->directions[port * 8 + lpin] == input ? 1 : 0;
+        uint8_t bit = dev->directions[port * 8 + lpin] == CAT_DIR_INPUT ? 1 : 0;
         tx_buffer[1] |= bit << lpin;
     }
 
@@ -110,19 +114,19 @@ esp_err_t setPolarity(cat_state_t *dev, cat_port_t port, cat_pin_t pin, cat_pola
 
     uint8_t tx_buffer[2];
 
-    if (port == port0)
+    if (port == CAT_PORT_0)
     {
-        tx_buffer[0] = polarity0;
+        tx_buffer[0] = CAT_CMD_POLARITY_0;
     }
     else
     {
-        tx_buffer[0] = polarity1;
+        tx_buffer[0] = CAT_CMD_POLARITY_1;
     }
 
     tx_buffer[1] = 0x00;
     for (uint8_t lpin = 0; lpin <= 7; lpin++)
     {
-        uint8_t bit = dev->polarities[port * 8 + lpin] == normal ? 1 : 0;
+        uint8_t bit = dev->polarities[port * 8 + lpin] == CAT_POLARITY_NORMAL ? 1 : 0;
         tx_buffer[1] |= bit << lpin;
     }
 
@@ -143,19 +147,19 @@ esp_err_t setLevel(cat_state_t *dev, cat_port_t port, cat_pin_t pin, cat_level_t
 
     uint8_t tx_buffer[2];
 
-    if (port == port0)
+    if (port == CAT_PORT_0)
     {
-        tx_buffer[0] = output0;
+        tx_buffer[0] = CAT_CMD_OUTPUT_0;
     }
     else
     {
-        tx_buffer[0] = output1;
+        tx_buffer[0] = CAT_CMD_OUTPUT_1;
     }
 
     tx_buffer[1] = 0x00;
     for (uint8_t lpin = 0; lpin <= 7; lpin++)
     {
-        uint8_t bit = dev->outputs[port * 8 + lpin] == high ? 1 : 0;
+        uint8_t bit = dev->outputs[port * 8 + lpin] == CAT_LEVEL_HIGH ? 1 : 0;
         tx_buffer[1] |= bit << lpin;
     }
 
@@ -177,13 +181,13 @@ cat_level_t getLevel(cat_state_t *dev, cat_port_t port, cat_pin_t pin)
 
     rx_buffer[0] = MAGIC_BYTE;
 
-    if (port == port0)
+    if (port == CAT_PORT_0)
     {
-        tx_buffer[0] = input0;
+        tx_buffer[0] = CAT_CMD_INPUT_0;
     }
     else
     {
-        tx_buffer[0] = input1;
+        tx_buffer[0] = CAT_CMD_INPUT_1;
     }
 
     esp_err_t err = i2c_master_transmit_receive(dev->i2c_dev, tx_buffer, 1, rx_buffer, 1, I2C_USER_TIMEOUT_MS);
@@ -203,10 +207,10 @@ cat_level_t getLevel(cat_state_t *dev, cat_port_t port, cat_pin_t pin)
 
     if (bit >= 1)
     {
-        return high;
+        return CAT_LEVEL_HIGH;
     }
     else
     {
-        return low;
+        return CAT_LEVEL_LOW;
     }
 }

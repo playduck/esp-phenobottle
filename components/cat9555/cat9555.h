@@ -9,50 +9,50 @@
 
 typedef enum
 {
-    port0 = 0,
-    port1 = 1
+    CAT_PORT_0 = 0,
+    CAT_PORT_1 = 1
 } cat_port_t;
 
 typedef enum
 {
-    pin0 = 0,
-    pin1 = 1,
-    pin2 = 2,
-    pin3 = 3,
-    pin4 = 4,
-    pin5 = 5,
-    pin6 = 6,
-    pin7 = 7
+    CAT_PIN_0 = 0,
+    CAT_PIN_1 = 1,
+    CAT_PIN_2 = 2,
+    CAT_PIN_3 = 3,
+    CAT_PIN_4 = 4,
+    CAT_PIN_5 = 5,
+    CAT_PIN_6 = 6,
+    CAT_PIN_7 = 7
 } cat_pin_t;
 
 typedef enum
 {
-    input0 = 0x00,
-    input1,
-    output0,
-    output1,
-    polarity0,
-    polarity1,
-    config0,
-    config1,
+    CAT_CMD_INPUT_0 = 0x00,
+    CAT_CMD_INPUT_1,
+    CAT_CMD_OUTPUT_0,
+    CAT_CMD_OUTPUT_1,
+    CAT_CMD_POLARITY_0,
+    CAT_CMD_POLARITY_1,
+    CAT_CMD_CONFIG_0,
+    CAT_CMD_CONFIG_1,
 } cat_command_t;
 
 typedef enum
 {
-    input,
-    output
+    CAT_DIR_INPUT,
+    CAT_DIR_output
 } cat_direction_t;
 
 typedef enum
 {
-    low = 0,
-    high = 1
+    CAT_LEVEL_LOW = 0,
+    CAT_LEVEL_HIGH = 1
 } cat_level_t;
 
 typedef enum
 {
-    normal = 0,
-    invert = 1
+    CAT_POLARITY_NORMAL = 0,
+    CAT_POLARITY_INVERT = 1
 } cat_polarity_t;
 
 typedef struct
