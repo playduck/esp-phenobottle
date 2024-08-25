@@ -9,8 +9,8 @@
 #include "esp_log.h"
 #include "esp_pm.h"
 
-#define STATS_DURATION pdMS_TO_TICKS(30000)
-#define STATS_BLINDTIME pdMS_TO_TICKS(10000)
+#define STATS_DURATION pdMS_TO_TICKS(2000)
+#define STATS_BLINDTIME pdMS_TO_TICKS(20000)
 #define ARRAY_SIZE_OFFSET 5 // Increase this if print_real_time_stats returns ESP_ERR_INVALID_SIZE
 
 static const char *TAG = "STATS";

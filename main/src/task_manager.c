@@ -3,7 +3,7 @@
 
 #include "esp_err.h"
 #include "esp_log.h"
-
+#include "esp_system.h"
 #include <cJSON.h>
 
 #include "interval_task.h"
@@ -18,7 +18,8 @@ extern interval_task_interface_t gas_task_interface;
 extern interval_task_interface_t od_task_interface;
 
 static const char *TAG = "Task Manager";
-uint8_t t = 0;
+
+static uint8_t fail_count = 0;
 
 char local_response_buffer[MAX_HTTP_OUTPUT_BUFFER + 1] = {0};
 
@@ -127,6 +128,7 @@ esp_err_t task_manager_update()
 
     if (err == ESP_OK)
     {
+        fail_count = 0;
         ESP_LOGI(TAG, "HTTPS Status = %d, content_length = %" PRId64,
                  esp_http_client_get_status_code(client),
                  esp_http_client_get_content_length(client));
@@ -138,7 +140,14 @@ esp_err_t task_manager_update()
     }
     else
     {
-        ESP_LOGE(TAG, "Error perform http request %s", esp_err_to_name(err));
+        fail_count++;
+        ESP_LOGE(TAG, "Error perform http request %s (%d)", esp_err_to_name(err), fail_count);
+
+        if(fail_count > 6)  {
+            ESP_LOGE(TAG, "Could not retrive status information, attempting restart...");
+            vTaskDelay(pdMS_TO_TICKS(100));
+            esp_restart();
+        }
     }
 
     esp_http_client_cleanup(client);
