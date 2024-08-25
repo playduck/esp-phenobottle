@@ -38,6 +38,7 @@ float humidity_to_float(uint16_t humidity_raw)  {
 }
 
 esp_err_t sht3x_init(sht3x_device_t* dev, sht3x_address_t address, i2c_port_num_t i2c_port) {
+    dev->initilized = false;
 
     // FIXME remove this
     uint8_t test_data[] = {
@@ -81,10 +82,15 @@ esp_err_t sht3x_init(sht3x_device_t* dev, sht3x_address_t address, i2c_port_num_
     }
 
     ESP_LOGI(TAG, "Initilized device");
+    dev->initilized = true;
     return ESP_OK;
 }
 
 esp_err_t sht3x_start_measurement(sht3x_device_t* dev, sht3x_measurement_command_t measurement_mode)    {
+    if(!dev->initilized)    {
+        return ESP_FAIL;
+    }
+
     union {
         uint16_t value;
         uint8_t bytes[2];
@@ -98,6 +104,10 @@ esp_err_t sht3x_start_measurement(sht3x_device_t* dev, sht3x_measurement_command
 }
 
 esp_err_t sht3x_read_measurement(sht3x_device_t* dev, sht3x_measurement_t* measurement) {
+    if(!dev->initilized)    {
+        return ESP_FAIL;
+    }
+
     uint8_t rx_buffer[6];
 
     esp_err_t ret = i2c_master_receive(dev->i2c_dev, rx_buffer, 6, I2C_USER_TIMEOUT_MS);

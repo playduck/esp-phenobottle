@@ -77,6 +77,7 @@ typedef struct {
 
 typedef struct {
     i2c_master_dev_handle_t i2c_dev;
+    bool initilized;
 } sht3x_device_t;
 
 esp_err_t sht3x_init(sht3x_device_t* dev, sht3x_address_t address, i2c_port_num_t i2c_port);
